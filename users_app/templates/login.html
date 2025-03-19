@@ -1,0 +1,52 @@
+{% extends 'base1.html' %}
+{% load i18n static %}
+
+
+{% block content %}
+    <div id="content-main" class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="text-center">
+                            
+                            <h3 class="login-title">Bienvenido a Gestión de Requisitos</h3>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <form method="post" id="login-form">
+                            {% csrf_token %}
+                            <div class="form-group text-center mb-3" >
+                                {{ form.username.label_tag }}
+                                {{ form.username }}
+                                {% if form.username.errors %}
+                                    {% for error in form.username.errors %}
+                                        <p class="errornote">{{ error }}</p>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                            <div class="form-group text-center">
+                                {{ form.password.label_tag }}
+                                {{ form.password }}
+                                {% if form.password.errors %}
+                                    {% for error in form.password.errors %}
+                                        <p class="errornote">{{ error }}</p>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                            {% url 'admin:password_reset' as password_reset_url %}
+                            {% if password_reset_url %}
+                                <p class="password-reset-link">
+                                    <a href="{{ password_reset_url }}">{% translate 'Forgotten your password or username?' %}</a>
+                                </p>
+                            {% endif %}
+                            <div class="text-center mt-3">
+                                <button type="submit" class="btn btn-primary">{% translate 'Log in' %}</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

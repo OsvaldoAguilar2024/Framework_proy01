@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block content %}
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8 text-center">
+                <h1 class="mb-4">Bienvenido a Gestion de Requisitos</h1>
+                {% if logo_url %}
+                <div class="mb-4">
+                    <img src="{{ logo_url }}" alt="Company Logo" class="img-fluid rounded" style="max-width: 200px; max-height: 200px;">
+                </div>
+                {% else %}
+                <p class="text-muted">no hay logo definido.</p>
+                {% endif %}
+                {% if company_name %}
+                <p class="lead">Bienvenido <span class="fw-bold">{{ user.first_name }}</span>, <span class="fw-bold">{{company_name}}</span></p>
+                {%endif%}
+              
+                {% if user.is_superuser %}
+                    <a href="{% url 'admin:index' %}" class="btn btn-primary mt-3">Vaya al panel de Administracion</a>
+                {% endif %}
+                <p></p>
+
+            </div>
+        </div>
+    </div>
+{% endblock %}

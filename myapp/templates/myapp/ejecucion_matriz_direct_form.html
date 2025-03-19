@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% load semantic_forms %}
+
+{% block content %}
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <h2>Formulario de Ejecución de Plan</h2>
+                {% if messages %}
+                    <ul class="messages">
+                        {% for message in messages %}
+                            <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+                <form method="post" enctype="multipart/form-data" class="form-semantic">
+                    {% form form %} 
+
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </form>
+            </div>
+            
+        </div>
+    </div>
+{% endblock %}

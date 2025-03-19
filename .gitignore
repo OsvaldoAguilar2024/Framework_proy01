@@ -1,0 +1,24 @@
+# Archivos de Python
+*.pyc
+__pycache__/
+.DS_Store
+
+# Archivos de entorno virtual
+venv/
+env/
+.env
+
+# Archivos de base de datos
+db.sqlite3
+db*.sqlite3
+
+# Archivos de medios
+media/
+
+# Archivos estaticos
+staticfiles/
+
+# Otros
+*.log
+*.swp
+*.swo

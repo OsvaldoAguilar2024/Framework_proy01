@@ -1,0 +1,22 @@
+{# users_app/templates/users_app/select_company.html #}
+{% extends 'base.html' %}
+
+{% block content %}
+    <div class="container">
+        <h2>Escoja La empresa a trabajar</h2>
+        <form method="post">
+            {% csrf_token %}
+            {% for company in companies %}
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="company" id="company{{ company.codigoempresa }}" value="{{ company.codigoempresa }}" required>
+                    <label class="form-check-label" for="company{{ company.codigoempresa }}">
+                        {{ company.nombreempresa }}
+                    </label>
+                </div>
+            {% endfor %}
+            <button type="submit" class="btn btn-primary">Seleccionar</button>
+        </form>
+    </div>
+{% endblock %}
+
+
