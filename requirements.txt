@@ -14,9 +14,12 @@ MarkupPy==1.14
 odfpy==1.4.1
 openpyxl==3.1.5
 pillow==11.1.0
+psycopg==3.2.6
+psycopg2==2.9.10
 PyYAML==6.0.2
 sqlparse==0.5.3
 tablib==3.5.0
+typing_extensions==4.13.2
 tzdata==2025.1
 xlrd==2.0.1
 xlwt==1.3.0
