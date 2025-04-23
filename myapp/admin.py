@@ -279,65 +279,123 @@ class EmpresaAdmin(SemanticImportExportModelAdmin):
 
 class RequisitosLegalAdmin(SemanticImportExportModelAdmin):
     resource_classes = [RequisitoLegalResource]
-    list_display = ('id', 'tema', 'entidad_que_emite' ,'jerarquia_de_la_norma' , 'numero', 'fecha', 'articulo_aplicable', 'Obligacion', 'pais' , 'industria' )
-    list_filter = ('tema', 'entidad_que_emite')
-    search_fields = ('tema', 'entidad_que_emite')
+    list_display = ('id', 'tema', 'entidad_que_emite' ,'jerarquia_de_la_norma' , 'numero', 'fecha', 'articulo_aplicable', 'Obligacion', 'pais' , 'industria', 'tiempo_validacion') # <-- Añadido aquí
+    list_filter = ('tema', 'entidad_que_emite', 'tiempo_validacion') # <-- Añadido aquí (opcional)
+    search_fields = ('tema', 'entidad_que_emite', 'tiempo_validacion') # <-- Añadido aquí (opcional, buscar en DurationField puede ser limitado)
 
     class Meta:
         verbose_name = " Requisito Legal "
         model = RequisitoLegal
 
 
-class RequisitosPorEmpresaDetalleInline(SemanticTabularInline):
-    model = RequisitoPorEmpresaDetalle
-    extra = 1
 
+
+class RequisitosPorEmpresaDetalleInline(SemanticTabularInline): # O SemanticStackedInline si prefieres esa vista
+    """
+    Inline para mostrar y editar los detalles de los requisitos asociados
+    a una 'RequisitosPorEmpresa'.
+    """
+    model = RequisitoPorEmpresaDetalle
+    extra = 1 # Número de formularios extra vacíos para añadir nuevos detalles
+    # Especifica los campos a mostrar en el inline
+    fields = (
+        'requisito',
+        'descripcion_cumplimiento',
+        'periodicidad',
+        'fecha_inicio',
+        'tiempo_validacion', # Nuevo campo añadido
+        'fecha_final'        # Nuevo campo calculado añadido
+    )
+    # Marca 'fecha_final' como de solo lectura, ya que se calcula automáticamente
+    readonly_fields = ('fecha_final',)
+    verbose_name = "Detalle de Requisito por Empresa"
+    verbose_name_plural = "Detalles de Requisitos por Empresa"
 
 class RequisitosPorEmpresaAdmin(SemanticImportExportModelAdmin):
-    resource_classes = [RequisitosPorEmpresaResource]
-    list_display = ('id', 'empresa', 'nombre', 'descripcion', 'duplicate_link')
-    list_filter = ('empresa', 'nombre', 'descripcion')
-    search_fields = ('empresa', 'nombre', 'descripcion')
-    inlines = [RequisitosPorEmpresaDetalleInline]
+    """
+    Configuración del Admin para el modelo RequisitosPorEmpresa.
+    Permite la gestión de las matrices de requisitos por empresa y
+    la duplicación de requisitos a planes anuales.
+    """
+    resource_classes = [RequisitosPorEmpresaResource] # Para import/export
+    list_display = ('id', 'get_empresa_nombre', 'nombre', 'descripcion', 'duplicate_link') # Usar método para nombre empresa
+    list_filter = (EmpresaPlanFilter, 'nombre') # Usar filtro de empresa personalizado
+    search_fields = ('empresa__nombreempresa', 'nombre', 'descripcion') # Buscar por nombre de empresa
+    inlines = [RequisitosPorEmpresaDetalleInline] # Incluir el inline definido arriba
 
+    def get_empresa_nombre(self, obj):
+        """Método para mostrar el nombre de la empresa en list_display."""
+        return obj.empresa.nombreempresa
+    get_empresa_nombre.short_description = 'Empresa'
+    get_empresa_nombre.admin_order_field = 'empresa__nombreempresa'
+
+    # --- Funcionalidad de Duplicación ---
     def duplicate_to_plan(self, request):
+        """
+        Vista personalizada del admin para manejar la duplicación de requisitos
+        de todas las matrices a los planes de un año específico.
+        """
         if request.method == 'POST':
             target_year = request.POST.get('target_year')
             if target_year:
                 try:
                     target_year = int(target_year)
+                    # Llama a la función de utilidad que realiza la duplicación
+                    # (Asegúrate que la función `duplicate_requisitos_to_plan` esté definida en utils.py)
                     duplicate_requisitos_to_plan(target_year)
-                    messages.success(request, 'Requisitos duplicados al plan exitosamente.')
+                    messages.success(request, f'Requisitos duplicados al plan del año {target_year} exitosamente.')
                 except ValueError:
                     messages.error(request, 'Año inválido. Debe ser un número entero.')
                 except Exception as e:
                     messages.error(request, f'Error al duplicar: {e}')
+            else:
+                messages.error(request, 'Debe seleccionar un año de destino.')
 
-            return HttpResponseRedirect(request.path)
+            # Redirige de vuelta a la lista de RequisitosPorEmpresa después de la acción
+            return HttpResponseRedirect(reverse('admin:myapp_requisitosporempresa_changelist'))
 
-        return render(request, 'admin/duplicate_to_plan.html')
+        # Contexto para renderizar la plantilla del formulario de duplicación
+        context = dict(
+           self.admin_site.each_context(request),
+           opts=self.model._meta, # Pasa las opciones del modelo a la plantilla
+           title="Duplicar Requisitos al Plan Anual" # Título para la página
+        )
+        # Renderiza la plantilla HTML que contiene el formulario para ingresar el año
+        return render(request, 'admin/duplicate_to_plan.html', context)
 
-    duplicate_to_plan.short_description = "Duplicar al Plan"
+    duplicate_to_plan.short_description = "Duplicar Todos los Requisitos al Plan Anual"
 
     def get_urls(self):
+        """Añade la URL personalizada para la vista de duplicación."""
         urls = super().get_urls()
         custom_urls = [
             path(
                 'duplicate_to_plan/',
                 self.admin_site.admin_view(self.duplicate_to_plan),
-                name='duplicate_to_plan',
+                # Nombre único para la URL, incluyendo app_label y model_name
+                name='myapp_requisitosporempresa_duplicate_to_plan',
             ),
         ]
         return custom_urls + urls
-    
-    def duplicate_link(self, obj):
-        url = reverse('admin:duplicate_to_plan')
-        return format_html('<a href="{}">Duplicar al Plan</a>', url)
 
-    duplicate_link.short_description = "Duplicar al Plan"
+    def duplicate_link(self, obj):
+        """
+        Genera un enlace en la columna 'duplicate_link' de list_display
+        para acceder a la vista de duplicación.
+        Nota: Este enlace aparecerá en cada fila, pero la acción es global.
+              Podría ser más intuitivo mover esto a las acciones globales del admin.
+        """
+        # Enlaza a la vista de duplicación general
+        url = reverse('admin:myapp_requisitosporempresa_duplicate_to_plan')
+        return format_html('<a href="{}">Iniciar Duplicación</a>', url)
+
+    duplicate_link.short_description = "Acción Duplicar" # Nombre de la columna
+
+    # --- Fin Funcionalidad de Duplicación ---
 
     class Meta:
-        verbose_name = " Requisitos Por Empresa "
+        verbose_name = "Requisito Por Empresa" # Nombre singular
+        verbose_name_plural = "Requisitos Por Empresa" # Nombre plural
         model = RequisitosPorEmpresa
 
 class EjecucionMatrizAdmin(SemanticImportExportModelAdmin):

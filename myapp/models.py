@@ -5,6 +5,8 @@ from django.forms import ValidationError
 from django.contrib.auth.models import User
 from datetime import date, timedelta
 from django.core.validators import MaxValueValidator, MinValueValidator
+from django.utils import timezone
+
 
 # ... your existing code ...
 
@@ -68,6 +70,12 @@ class RequisitoLegal(models.Model):
     jerarquia_de_la_norma = models.CharField(max_length=255)
     numero = models.CharField(max_length=50)
     fecha = models.DateField()
+    tiempo_validacion = models.DurationField(
+        null=True,  # Permite que el campo sea nulo en la base de datos
+        blank=True, # Permite que el campo esté vacío en formularios
+        verbose_name="Tiempo de Validación",
+        help_text="Tiempo estimado o requerido para validar el cumplimiento del requisito (ej. '30 days', '6 months')."
+    )
     articulo_aplicable = models.TextField()
     Obligacion = models.TextField()
     proceso_que_aplica = models.CharField(max_length=255)
@@ -78,6 +86,8 @@ class RequisitoLegal(models.Model):
     )
     pais = models.ForeignKey(Pais, on_delete=models.CASCADE, null=True)  # New field
     industria = models.ForeignKey(Industria, on_delete=models.CASCADE, null=True)  # New field
+
+
 
 
     def __str__(self):
@@ -104,7 +114,7 @@ class RequisitosPorEmpresa(models.Model): # Renamed from MatrizEmpresa
         verbose_name_plural = "Requisitos Por Empresa" # Renamed from MatricesEmpresa
            
 
-class RequisitoPorEmpresaDetalle(models.Model): # Renamed from RequisitosPorEmpresa
+class RequisitoPorEmpresaDetalle(models.Model):
     PERIODICIDAD_CHOICES = [
         ('Diaria', 'Diaria'),
         ('Semanal', 'Semanal'),
@@ -114,11 +124,11 @@ class RequisitoPorEmpresaDetalle(models.Model): # Renamed from RequisitosPorEmpr
         ('Trimestral', 'Trimestral'),
         ('Semestral', 'Semestral'),
         ('Anual', 'Anual'),
-        ('Unica', 'Única'),  # For one-time requirements
-        ('Otro', 'Otro')  # in case you want to add a free text
+        ('Unica', 'Única'),
+        ('Otro', 'Otro')
     ]
-     
-    matriz = models.ForeignKey(RequisitosPorEmpresa, on_delete=models.CASCADE) #Renamed from MatrizEmpresa
+
+    matriz = models.ForeignKey(RequisitosPorEmpresa, on_delete=models.CASCADE)
     requisito = models.ForeignKey(RequisitoLegal, on_delete=models.CASCADE)
     descripcion_cumplimiento = models.TextField(blank=True, null=True)
     periodicidad = models.CharField(
@@ -126,15 +136,61 @@ class RequisitoPorEmpresaDetalle(models.Model): # Renamed from RequisitosPorEmpr
         choices=PERIODICIDAD_CHOICES,
         default='Mensual'
     )
-    fecha_inicio = models.DateField(blank=False, null=False, default=date.today)
+    
+    fecha_inicio = models.DateField(blank=False, null=False, default=timezone.now) # Usar timezone.now es mejor práctica
+
+    # --- NUEVO CAMPO TIEMPO VALIDACION ---
+    tiempo_validacion = models.DurationField(
+        null=True,
+        blank=True,
+        verbose_name="Tiempo de Validación",
+        help_text="Tiempo estimado o requerido para validar el cumplimiento del requisito (ej. '30 days', '6 months'). Se usará para calcular la Fecha Final."
+    )
+    # --- FIN NUEVO CAMPO TIEMPO VALIDACION ---
+
+    # --- NUEVO CAMPO FECHA FINAL (CALCULADO) ---
+    fecha_final = models.DateField(
+        null=True,
+        blank=True, # Permitir blank=True ya que se calcula en save()
+        verbose_name="Fecha Final Estimada",
+        help_text="Fecha calculada automáticamente basada en la Fecha de Inicio y el Tiempo de Validación.",
+        editable=False # Hacerlo no editable en el admin, ya que se calcula
+    )
+    # --- FIN NUEVO CAMPO FECHA FINAL ---
+
 
     def __str__(self):
         return f"{self.matriz.nombre} - {self.requisito.tema}"
-    
+
+    def save(self, *args, **kwargs):
+        # Calcular fecha_final antes de guardar
+        if self.fecha_inicio and self.tiempo_validacion:
+            try:
+                # Asegurarse de que fecha_inicio es un objeto date
+                if isinstance(self.fecha_inicio, str):
+                     self.fecha_inicio = date.fromisoformat(self.fecha_inicio)
+                # Asegurarse de que tiempo_validacion es un timedelta
+                if isinstance(self.tiempo_validacion, str):
+                     # Django puede necesitar ayuda para parsear strings a timedelta a veces
+                     # Esta es una forma simple, puede necesitar ajustes según el formato exacto
+                     # que esperes del input string.
+                     # Por ahora, asumimos que Django lo maneja bien o viene como timedelta.
+                     pass # Asumiendo que Django lo convierte o ya es timedelta
+
+                self.fecha_final = self.fecha_inicio + self.tiempo_validacion
+            except (TypeError, ValueError) as e:
+                # Manejar posible error si los tipos no son compatibles o el formato es incorrecto
+                print(f"Error calculating fecha_final: {e}") # Loggear el error
+                self.fecha_final = None # Dejar como None si hay error
+        else:
+            self.fecha_final = None # Si falta fecha_inicio o tiempo_validacion, fecha_final es None
+
+        super().save(*args, **kwargs) # Llamar al método save original
+
     class Meta:
-        unique_together = ('matriz', 'requisito')  #each matrix can have only one requirement
-        verbose_name = "Requisito Por Empresa Detalle" #Renamed from RequisitosPorEmpresa
-        verbose_name_plural = "Requisitos Por Empresa Detalle" #Renamed from RequisitosPorEmpresa
+        unique_together = ('matriz', 'requisito')
+        verbose_name = "Requisito Por Empresa Detalle"
+        verbose_name_plural = "Requisitos Por Empresa Detalle"
 
 
 class Plan(models.Model):
@@ -236,6 +292,7 @@ class EjecucionMatriz(models.Model):
     razon_no_conforme = models.TextField(
         blank=False,
         null=False,
+        default='.',
         error_messages={'required': "Por favor, ingrese una razón."}
         )
 
